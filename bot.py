@@ -3,7 +3,7 @@ import time
 import os
 from colorama import Fore
 
-# ============ KONFIGURASI (dari config.json, chmod 600) ============
+# ============ CONFIGURATION (from config.json, chmod 600) ============
 import json as _json
 
 _CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
@@ -11,7 +11,7 @@ try:
     with open(_CONFIG_PATH) as _cf:
         _cfg = _json.load(_cf)
 except FileNotFoundError:
-    print("config.json belum ada. Isi dulu: gemini_api_key, discord_token, channel_id.")
+    print("config.json not found. Fill in: gemini_api_key, discord_token, channel_id.")
     raise SystemExit(1)
 
 GEMINI_API_KEY = _cfg.get("gemini_api_key", "")
@@ -20,10 +20,10 @@ GEMINI_MODEL_FALLBACK = _cfg.get("gemini_model_fallback", "gemini-3.1-flash-lite
 DISCORD_TOKEN = _cfg.get("discord_token", "")
 CHANNEL_ID = _cfg.get("channel_id", "")
 POLL_INTERVAL = int(_cfg.get("poll_interval", 5))
-# Rem biar ga spam di channel rame:
-REPLY_COOLDOWN_GLOBAL = int(_cfg.get("reply_cooldown_global", 60))  # detik antar balasan
-REPLY_COOLDOWN_USER = int(_cfg.get("reply_cooldown_user", 300))    # detik per user yang sama
-# Instruksi gaya balasan AI, ubah sesukamu:
+# Throttles to avoid spamming busy channels:
+REPLY_COOLDOWN_GLOBAL = int(_cfg.get("reply_cooldown_global", 60))  # seconds between replies
+REPLY_COOLDOWN_USER = int(_cfg.get("reply_cooldown_user", 300))    # seconds per same user
+# AI reply style instructions, edit to your liking:
 SYSTEM_PROMPT = _cfg.get("system_prompt", (
     "You're a chill friend hanging out in an international Discord server. "
     "Reply to the message below in casual, natural English like a native speaker "
@@ -51,8 +51,8 @@ def api_get(path, params=None):
 
 
 def gemini_reply(user_text, username):
-    """Minta 1 balasan ke Gemini. Retry 2x per model, fallback ke model cadangan."""
-    prompt = f"{SYSTEM_PROMPT}\n\n{username} ngetik: {user_text}\nBalasan:"
+    """Ask Gemini for 1 reply. Retry 2x per model, fall back to backup model."""
+    prompt = f"{SYSTEM_PROMPT}\n\n{username} typed: {user_text}\nReply:"
     for model in (GEMINI_MODEL, GEMINI_MODEL_FALLBACK):
         url = (
             f"https://generativelanguage.googleapis.com/v1beta/models/"
@@ -74,8 +74,8 @@ def gemini_reply(user_text, username):
                 )
             except requests.HTTPError as e:
                 msg = str(e).replace(GEMINI_API_KEY, "[KEY]")
-                print(Fore.RED + f"Gemini {model} gagal: {msg}")
-                break  # error permanen, langsung coba model cadangan
+                print(Fore.RED + f"Gemini {model} failed: {msg}")
+                break  # permanent error, try backup model right away
             except Exception as e:
                 msg = str(e).replace(GEMINI_API_KEY, "[KEY]")
                 print(Fore.RED + f"Gemini {model} error: {msg}, retry...")
@@ -83,14 +83,14 @@ def gemini_reply(user_text, username):
     return None
 
 
-# kenalin diri sendiri biar ga bales pesan sendiri
+# identify self so we never reply to our own messages
 me = requests.get("https://discord.com/api/v9/users/@me",
                   headers=headers, timeout=20).json()
 my_id = me.get("id")
-print(Fore.GREEN + f"Login sebagai: {me.get('username')} ({my_id})")
-print(Fore.GREEN + f"Mantau channel {channel_id}, balesin tiap pesan baru...\n")
+print(Fore.GREEN + f"Logged in as: {me.get('username')} ({my_id})")
+print(Fore.GREEN + f"Monitoring channel {channel_id}, replying to every new message...\n")
 
-# mulai dari pesan terakhir biar ga bales history lama
+# start from the latest message so we don't reply to old history
 init = api_get("/messages", params={"limit": 1})
 last_id = init.json()[0]["id"] if init.status_code == 200 and init.json() else None
 
@@ -106,21 +106,21 @@ while True:
         r = api_get("/messages", params=params)
 
         if r.status_code == 401:
-            print(Fore.RED + "Token Discord invalid / expired. Stop.")
+            print(Fore.RED + "Discord token invalid / expired. Stopping.")
             break
         if r.status_code == 429:
             retry = int(r.json().get("retry_after", 5))
-            print(Fore.RED + f"Rate limited, tunggu {retry}s")
+            print(Fore.RED + f"Rate limited, waiting {retry}s")
             time.sleep(retry)
             continue
         if r.status_code != 200:
-            print(Fore.RED + f"Gagal ambil pesan: {r.status_code}")
+            print(Fore.RED + f"Failed to fetch messages: {r.status_code}")
             time.sleep(POLL_INTERVAL)
             continue
 
         messages = r.json()
         now = _time.time()
-        # proses dari yang paling lama biar urutan balasan bener
+        # process oldest first so reply order is correct
         for m in reversed(messages):
             last_id = m["id"]
             author = m.get("author", {})
@@ -132,12 +132,12 @@ while True:
             username = author.get("username", "user")
             print(Fore.WHITE + f"{username}: {content[:80]}")
 
-            # rem: cooldown global + per user
+            # throttle: global + per-user cooldown
             if now - last_reply_global < REPLY_COOLDOWN_GLOBAL:
-                print(Fore.RED + "  -> skip (cooldown global)")
+                print(Fore.RED + "  -> skipped (global cooldown)")
                 continue
             if now - last_reply_user.get(author.get("id"), 0) < REPLY_COOLDOWN_USER:
-                print(Fore.RED + f"  -> skip (cooldown user {username})")
+                print(Fore.RED + f"  -> skipped (cooldown for user {username})")
                 continue
 
             reply = gemini_reply(content, username)
@@ -154,16 +154,16 @@ while True:
                 timeout=20,
             )
             if send.status_code in (200, 201):
-                print(Fore.YELLOW + f"  -> dibales: {reply[:80]}")
+                print(Fore.YELLOW + f"  -> replied: {reply[:80]}")
                 last_reply_global = _time.time()
                 last_reply_user[author.get("id")] = _time.time()
                 now = _time.time()
             elif send.status_code == 429:
                 retry = int(send.json().get("retry_after", 5))
-                print(Fore.RED + f"  -> rate limited, tunggu {retry}s")
+                print(Fore.RED + f"  -> rate limited, waiting {retry}s")
                 time.sleep(retry)
             else:
-                print(Fore.RED + f"  -> gagal kirim: {send.status_code}")
+                print(Fore.RED + f"  -> failed to send: {send.status_code}")
 
         time.sleep(POLL_INTERVAL)
 

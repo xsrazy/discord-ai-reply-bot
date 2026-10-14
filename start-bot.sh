@@ -1,7 +1,7 @@
 #!/bin/bash
-# Idempotent starter untuk Discord AI Reply Bot.
-# Tidak akan start duplikat kalau bot sudah jalan (cek via bot.pid).
-# Keluar diam-diam (exit 0) kalau config.json belum ada.
+# Idempotent starter for the Discord AI Reply Bot.
+# Won't start a duplicate if the bot is already running (checked via bot.pid).
+# Exits quietly (exit 0) when config.json doesn't exist yet.
 DIR="$(cd "$(dirname "$0")" && pwd)"
 PIDFILE="$DIR/bot.pid"
 LOG="$DIR/bot.log"
