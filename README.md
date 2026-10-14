@@ -4,6 +4,8 @@ A Discord bot that automatically replies to every new message in a channel
 using AI (Gemini), in casual native-like English with abbreviations
 (`lol`, `ngl`, `tbh`, `fr`, `idk`, `gonna`, `wanna`, etc.).
 
+Created by **[Xsrazy](https://github.com/xsrazy)**.
+
 ## How it works
 
 - Monitors the channel every 5 seconds (`poll_interval`)

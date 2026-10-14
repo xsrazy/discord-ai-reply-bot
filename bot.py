@@ -35,6 +35,7 @@ SYSTEM_PROMPT = _cfg.get("system_prompt", (
 
 print("=============================================================\n")
 print("Script       :        Discord AI Reply Bot (Gemini)\n")
+print("Author       :        Xsrazy (https://github.com/xsrazy)\n")
 print("=============================================================\n")
 
 time.sleep(1)
