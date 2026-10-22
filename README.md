@@ -62,6 +62,10 @@ bash start-bot.sh
 - This bot uses a Discord **user token** (self-bot). Discord strictly forbids automation with user tokens, and the account can be banned if detected. Use a spare account, at your own risk
 - A Gemini API key is available for free at [Google AI Studio](https://aistudio.google.com/); the free tier is enough for normal use (around 1,500 requests per day)
 
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
+
 ## Credits
 
 Created by [Xsrazy](https://github.com/xsrazy).
